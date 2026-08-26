@@ -43,14 +43,17 @@ HELP_TEXT = """\
   escape          Clear search / close panel
   tab             Switch between panels
 
+[bold cyan]Selection[/bold cyan]
+  space           Toggle file selection
+  b               Open all selected files in Blender
+  f               Toggle favorite
+
 [bold cyan]Actions[/bold cyan]
   o               Open in Blender
   d               Show file in file manager
-  f               Toggle favorite
-  r               Rescan directories
   c               Copy file path to clipboard
   x               Delete file (with confirmation)
-  b               Batch open selected files
+  r               Rescan directories
 
 [bold cyan]Views[/bold cyan]
   1               All files
@@ -142,12 +145,13 @@ class LazyBlendApp(App):
         Binding("escape", "clear_search", "Clear"),
         Binding("o", "open_blender", "Open"),
         Binding("enter", "open_blender", "Open"),
+        Binding("space", "toggle_select", "Select"),
         Binding("f", "toggle_favorite", "Fav"),
         Binding("r", "rescan", "Rescan"),
         Binding("d", "open_in_fm", "Dir"),
         Binding("c", "copy_path", "Copy"),
         Binding("x", "delete_file", "Delete"),
-        Binding("b", "batch_open", "Batch"),
+        Binding("b", "batch_open", "Open Sel"),
         Binding("1", "show_all", "All"),
         Binding("2", "show_favorites", "Favs"),
         Binding("3", "show_recent", "Recent"),
@@ -165,6 +169,7 @@ class LazyBlendApp(App):
         self.current_filter: str = ""
         self.current_view: str = "all"  # all, favorites, recent
         self._help_visible = False
+        self._selected_rows: set[int] = set()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -236,12 +241,14 @@ class LazyBlendApp(App):
         table = self.query_one("#file-table", DataTable)
         table.clear()
 
-        for info in self.filtered_files:
+        for i, info in enumerate(self.filtered_files):
             path = Path(info.path)
             is_fav = info.path in self.favorites
-            name = f"★ {path.name}" if is_fav else path.name
+            is_sel = i in self._selected_rows
+            marker = "[bold green]✓[/bold green] " if is_sel else ""
+            fav = "[yellow]★[/yellow] " if is_fav else ""
             parent = path.parent.name
-            display = f"{name} [dim]({parent})[/dim]"
+            display = f"{marker}{fav}{path.name} [dim]({parent})[/dim]"
 
             table.add_row(
                 display,
@@ -284,6 +291,7 @@ class LazyBlendApp(App):
     @on(Input.Changed, "#search")
     def on_search_changed(self, event: Input.Changed) -> None:
         self.current_filter = event.value
+        self._selected_rows.clear()
         self._apply_filter()
 
     @on(DataTable.RowSelected, "#file-table")
@@ -292,6 +300,13 @@ class LazyBlendApp(App):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
             self.action_open_blender()
+
+    @on(DataTable.RowHighlighted, "#file-table")
+    def on_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.cursor_row is not None and 0 <= event.cursor_row < len(self.filtered_files):
+            info = self.filtered_files[event.cursor_row]
+            self._update_info_panel(info)
+            self._update_selection_status()
 
     @on(Button.Pressed, "#btn-all")
     def on_btn_all(self) -> None:
@@ -323,6 +338,30 @@ class LazyBlendApp(App):
 
     def action_focus_search(self) -> None:
         self.query_one("#search", Input).focus()
+
+    def action_toggle_select(self) -> None:
+        table = self.query_one("#file-table", DataTable)
+        if table.cursor_row is None:
+            return
+        row = table.cursor_row
+        if row in self._selected_rows:
+            self._selected_rows.discard(row)
+        else:
+            self._selected_rows.add(row)
+        self._update_selection_status()
+        self._update_row_styles()
+
+    def _update_selection_status(self) -> None:
+        count = len(self._selected_rows)
+        if count > 0:
+            self._update_status(f"[bold]{count}[/bold] file{'s' if count != 1 else ''} selected — press [bold]b[/bold] to open all")
+        else:
+            self._apply_filter()
+
+    def _update_row_styles(self) -> None:
+        table = self.query_one("#file-table", DataTable)
+        # DataTable doesn't support per-row styling easily, so we update the display
+        self._populate_table()
 
     def action_clear_search(self) -> None:
         search = self.query_one("#search", Input)
@@ -459,18 +498,17 @@ class LazyBlendApp(App):
             self._update_status(f"Error deleting: {e}")
 
     def action_batch_open(self) -> None:
-        selected = []
-        table = self.query_one("#file-table", DataTable)
-        for row_idx in table.cursor_type == "row" and range(len(self.filtered_files)) or []:
-            # In row mode, we just open all filtered files
-            pass
-
-        # Open all currently filtered files
-        if not self.filtered_files:
-            self._update_status("No files to open")
+        if not self._selected_rows:
+            self._update_status("No files selected — press space to select files")
             return
 
-        for info in self.filtered_files[:10]:  # Limit to 10
+        to_open = [self.filtered_files[i] for i in sorted(self._selected_rows) if i < len(self.filtered_files)]
+
+        if not to_open:
+            self._update_status("No valid files selected")
+            return
+
+        for info in to_open:
             try:
                 subprocess.Popen(
                     [self.config.blender_path, info.path],
@@ -478,13 +516,21 @@ class LazyBlendApp(App):
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
-            except Exception:
-                pass
+                self._track_recent(info.path)
+            except FileNotFoundError:
+                self._update_status(f"Error: Blender not found at '{self.config.blender_path}'")
+                return
+            except Exception as e:
+                self._update_status(f"Error launching: {e}")
+                return
 
-        self._update_status(f"Launched {min(len(self.filtered_files), 10)} files in Blender")
+        self._update_status(f"Launched {len(to_open)} file{'s' if len(to_open) != 1 else ''} in Blender")
+        self._selected_rows.clear()
+        self._populate_table()
 
     def action_show_all(self) -> None:
         self.current_view = "all"
+        self._selected_rows.clear()
         self.query_one("#btn-all", Button).variant = "primary"
         self.query_one("#btn-favs", Button).variant = "default"
         self.query_one("#btn-recent", Button).variant = "default"
@@ -492,6 +538,7 @@ class LazyBlendApp(App):
 
     def action_show_favorites(self) -> None:
         self.current_view = "favorites"
+        self._selected_rows.clear()
         self.query_one("#btn-all", Button).variant = "default"
         self.query_one("#btn-favs", Button).variant = "primary"
         self.query_one("#btn-recent", Button).variant = "default"
@@ -499,6 +546,7 @@ class LazyBlendApp(App):
 
     def action_show_recent(self) -> None:
         self.current_view = "recent"
+        self._selected_rows.clear()
         self.query_one("#btn-all", Button).variant = "default"
         self.query_one("#btn-favs", Button).variant = "default"
         self.query_one("#btn-recent", Button).variant = "primary"
