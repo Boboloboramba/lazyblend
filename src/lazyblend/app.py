@@ -67,6 +67,12 @@ HELP_TEXT = """\
   x               Delete file (with confirmation)
   r               Rescan directories
 
+[bold cyan]Info Overlay (i)[/bold cyan]
+  j/k             Navigate up/down
+  h/l             Collapse/expand nodes
+  r               Rename item
+  Esc/q           Close overlay
+
 [bold cyan]Views[/bold cyan]
   1               All files
   2               Favorites only
@@ -177,7 +183,7 @@ class LazyBlendApp(App):
         Binding("slash", "focus_search", "Search"),
         Binding("escape", "clear_search", "Clear"),
         Binding("o", "open_blender", "Open"),
-        Binding("enter", "open_blender", "Open", priority=True),
+        Binding("enter", "open_blender", "Open"),
         Binding("space", "toggle_select", "Select"),
         Binding("f", "toggle_favorite", "Fav"),
         Binding("i", "show_info", "Info"),
@@ -502,6 +508,18 @@ class LazyBlendApp(App):
         if table.cursor_row is not None and 0 <= table.cursor_row < len(self.filtered_files):
             return self.filtered_files[table.cursor_row]
         return None
+
+    def on_key(self, event) -> None:
+        if event.key == "enter" and not self._screen_is_overlay():
+            self.action_open_blender()
+            event.stop()
+
+    def _screen_is_overlay(self) -> bool:
+        from textual.screen import Screen
+        for screen in self.screen_stack:
+            if screen is not self.screen and isinstance(screen, Screen):
+                return True
+        return False
 
     # --- Actions ---
 
@@ -832,13 +850,6 @@ class InfoScreen(Screen):
     }
     """
 
-    BINDINGS = [
-        Binding("enter", "noop", show=False, priority=True),
-    ]
-
-    def action_noop(self) -> None:
-        pass
-
     def __init__(self, info: BlendInfo) -> None:
         super().__init__()
         self.info = info
@@ -850,7 +861,7 @@ class InfoScreen(Screen):
             yield Tree("Blend File", id="info-tree")
             with Horizontal(id="rename-bar"):
                 yield Input(placeholder="Enter new name...", id="rename-input")
-            yield Static("[dim]Esc/q: close | Enter: rename selected item[/dim]", id="info-tree-help")
+            yield Static("[dim]Esc/q: close | j/k: navigate | h/l: expand/collapse | r: rename[/dim]", id="info-tree-help")
 
     def on_mount(self) -> None:
         tree = self.query_one("#info-tree", Tree)
