@@ -6,17 +6,20 @@ A fast, fuzzy-searching TUI for browsing and launching Blender `.blend` files. B
 
 ## Features
 
-- **Fuzzy search** — quickly find blend files with scoring-based matching
-- **File metadata** — shows file size, modification date, and Blender version from the file header
+- **Fuzzy search** — finds blend files by filename, collection names, object names, material names, and scene names
+- **Deep file inspection** — runs Blender in background mode to extract scenes, objects, polygons, materials, collections, render settings, and frame ranges
+- **File header info** — shows file size, modification date, Blender version, and compression from the file header
 - **Favorites** — bookmark frequently used blend files
 - **Recent files** — tracks recently opened files
 - **Directory scanning** — recursively scans configured directories for blend files
 - **Batch open** — open multiple files in Blender at once
+- **Multi-select** — select multiple files with `space`, open all with `b`
 - **Clipboard integration** — copy file paths with `c`
 - **File manager integration** — open containing folder with `d`
 - **Delete with confirmation** — safely delete blend files
 - **Vim-style navigation** — `j`/`k` to move, `/` to search, `enter` to open
 - **Omarchy plugin** — install as an Omarchy Quattro shell plugin
+- **Metadata caching** — extracted metadata is cached in `~/.config/lazyblend/cache/` for instant loading
 
 ## Install
 
@@ -53,13 +56,14 @@ python src/lazyblend/app.py
 |-----|--------|
 | `j` / `k` or `↑` / `↓` | Navigate up/down |
 | `enter` or `o` | Open selected file in Blender |
+| `space` | Toggle multi-select |
 | `/` | Focus search filter |
 | `escape` | Clear search / close help |
 | `f` | Toggle favorite |
 | `d` | Open containing folder in file manager |
 | `c` | Copy file path to clipboard |
 | `x` | Delete file (with confirmation) |
-| `b` | Batch open all filtered files |
+| `b` | Batch open all selected files |
 | `r` | Rescan directories |
 | `1` | Show all files |
 | `2` | Show favorites only |
@@ -74,6 +78,7 @@ LazyBlend stores its configuration in `~/.config/lazyblend/`:
 - `config.json` — scan directories, Blender path, preferences
 - `favorites.json` — bookmarked blend files
 - `recent.json` — recently opened files
+- `cache/` — extracted metadata cache (JSON files)
 
 ### Config options
 
@@ -92,6 +97,18 @@ LazyBlend stores its configuration in `~/.config/lazyblend/`:
   "sort_reverse": false
 }
 ```
+
+## Deep File Inspection
+
+LazyBlend uses Blender's Python API to extract detailed metadata from each blend file. When you launch the app, it runs `blender -b` in the background for each uncached file and extracts:
+
+- **Scenes** — scene names, object counts, render engines, resolution, frame ranges
+- **Objects** — object names, types (mesh, light, camera, empty, etc.)
+- **Geometry** — polygon and vertex counts
+- **Materials** — material names
+- **Collections** — collection names
+
+This metadata is cached in `~/.config/lazyblend/cache/` and only re-extracted when the file is modified. The first launch may be slow as files are analyzed, but subsequent launches are instant.
 
 ## Omarchy Bar Widget
 
