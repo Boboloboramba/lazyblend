@@ -1,5 +1,6 @@
 """Main LazyBlend TUI application."""
 
+import hashlib
 import subprocess
 import os
 from pathlib import Path
@@ -230,12 +231,13 @@ class LazyBlendApp(App):
         lines = [
             f"[bold]{path.name}[/bold]",
             f"Path: {info.path}",
-            f"Size: {info.size_str} | Modified: {info.modified_str}",
+            f"Size: {info.size_str} ({info.size:,} bytes) | Modified: {info.modified_str}",
         ]
         if info.valid:
-            lines.append(f"Version: {info.version} | {info.pointer_size} | {info.endianness}")
+            version_parts = [info.version, info.pointer_size, info.endianness]
+            lines.append(f"Version: {' | '.join(version_parts)}")
         else:
-            lines.append("[dim]Not a valid .blend file file header[/dim]")
+            lines.append("[dim]Not a valid .blend file header[/dim]")
 
         # Show deep metadata if available
         if info.metadata:
@@ -243,6 +245,10 @@ class LazyBlendApp(App):
             if meta.error:
                 lines.append(f"[dim]Analysis: {meta.error}[/dim]")
             else:
+                # Blender version that created the file
+                if meta.blender_version:
+                    lines.append(f"Created with: Blender {meta.blender_version}")
+
                 # Scene summary
                 scene_names = [s.name for s in meta.scenes]
                 if scene_names:
@@ -283,6 +289,10 @@ class LazyBlendApp(App):
         elif info.valid and info.metadata is None:
             lines.append("[dim]Analyzing...[/dim]")
 
+        # Show thumbnail info
+        if info.thumbnail and Path(info.thumbnail).exists():
+            lines.append(f"[dim]Thumbnail: {info.thumbnail}[/dim]")
+
         if info.path in self.favorites:
             lines.append("[yellow]★ Favorite[/yellow]")
 
@@ -292,6 +302,9 @@ class LazyBlendApp(App):
     def _extract_all_metadata(self) -> None:
         """Extract metadata for all uncached blend files in the background."""
         worker = get_current_worker()
+        thumb_dir = CACHE_DIR / "thumbnails"
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+
         for info in self.all_files:
             if worker.is_cancelled:
                 return
@@ -300,9 +313,17 @@ class LazyBlendApp(App):
             cached = get_cached_metadata(CACHE_DIR, info.path)
             if cached is not None:
                 info.metadata = cached
+                # Still check for thumbnail
+                thumb_path = thumb_dir / f"{hashlib.md5(info.path.encode()).hexdigest()}.png"
+                if thumb_path.exists():
+                    info.thumbnail = str(thumb_path)
                 continue
-            metadata = extract_metadata(info.path, self.config.blender_path)
+            metadata = extract_metadata(
+                info.path, self.config.blender_path, thumb_dir=thumb_dir
+            )
             info.metadata = metadata
+            if metadata.thumbnail_path:
+                info.thumbnail = metadata.thumbnail_path
             if not metadata.error:
                 save_metadata_cache(CACHE_DIR, info.path, metadata)
 

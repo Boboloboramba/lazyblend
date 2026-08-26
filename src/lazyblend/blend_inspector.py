@@ -84,7 +84,21 @@ result = {
     "camera_count": len(bpy.data.cameras),
     "light_count": len(bpy.data.lights),
     "addons": addons,
+    "blender_version": bpy.app.version_string,
 }
+
+# Write thumbnail if requested
+thumb_path = os.environ.get("LAZYBLEND_THUMBNAIL", "")
+if thumb_path:
+    try:
+        for img in bpy.data.images:
+            if img.packed_file:
+                packed = img.packed_file
+                with open(thumb_path, "wb") as tf:
+                    tf.write(packed.data)
+                break
+    except Exception:
+        pass
 
 # Write to output file instead of stdout to avoid Blender's own output
 output_path = os.environ.get("LAZYBLEND_OUTPUT", "/tmp/lazyblend_extract.json")
@@ -127,6 +141,8 @@ class BlendMetadata:
     camera_count: int = 0
     light_count: int = 0
     addons: list[str] = field(default_factory=list)
+    blender_version: str = ""
+    thumbnail_path: str = ""
     extracted_at: float = 0.0
     error: str = ""
 
@@ -198,7 +214,11 @@ def save_metadata_cache(cache_dir: Path, filepath: str, metadata: BlendMetadata)
     cache_file.write_text(json.dumps(asdict(metadata), indent=2))
 
 
-def extract_metadata(filepath: str, blender_path: str = "blender") -> BlendMetadata:
+def extract_metadata(
+    filepath: str,
+    blender_path: str = "blender",
+    thumb_dir: Path | None = None,
+) -> BlendMetadata:
     """Run Blender in background mode to extract metadata from a blend file.
 
     Returns a BlendMetadata object with the extracted data, or an error
@@ -218,12 +238,22 @@ def extract_metadata(filepath: str, blender_path: str = "blender") -> BlendMetad
     output_path = f"/tmp/lazyblend_{uid}.json"
     script_path = f"/tmp/lazyblend_{uid}.py"
 
+    # Set up thumbnail path if requested
+    thumb_path = ""
+    if thumb_dir:
+        thumb_dir.mkdir(parents=True, exist_ok=True)
+        thumb_key = hashlib.md5(filepath.encode()).hexdigest()
+        thumb_path = str(thumb_dir / f"{thumb_key}.png")
+
     try:
         # Write extraction script
         with open(script_path, "w") as f:
             f.write(EXTRACTION_SCRIPT)
 
         env = {**os.environ, "LAZYBLEND_OUTPUT": output_path}
+        if thumb_path:
+            env["LAZYBLEND_THUMBNAIL"] = thumb_path
+
         result = subprocess.run(
             [
                 blender_path,
@@ -258,7 +288,10 @@ def extract_metadata(filepath: str, blender_path: str = "blender") -> BlendMetad
             return metadata
 
         data = json.loads(output)
-        return _dict_to_metadata(data, metadata)
+        metadata = _dict_to_metadata(data, metadata)
+        if thumb_path and os.path.exists(thumb_path):
+            metadata.thumbnail_path = thumb_path
+        return metadata
 
     except subprocess.TimeoutExpired:
         metadata.error = f"Extraction timed out ({EXTRACT_TIMEOUT}s)"
@@ -323,5 +356,6 @@ def _dict_to_metadata(
         camera_count=data.get("camera_count", 0),
         light_count=data.get("light_count", 0),
         addons=data.get("addons", []),
+        blender_version=data.get("blender_version", ""),
         extracted_at=base.extracted_at if base else time.time(),
     )

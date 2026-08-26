@@ -23,6 +23,7 @@ class BlendInfo:
     valid: bool = False
     compressed: bool = False
     metadata: BlendMetadata | None = None
+    thumbnail: str = ""
 
     @property
     def size_str(self) -> str:
