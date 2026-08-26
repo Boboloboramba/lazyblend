@@ -91,12 +91,23 @@ result = {
 thumb_path = os.environ.get("LAZYBLEND_THUMBNAIL", "")
 if thumb_path:
     try:
+        # First try extracting packed images
         for img in bpy.data.images:
             if img.packed_file:
                 packed = img.packed_file
                 with open(thumb_path, "wb") as tf:
                     tf.write(packed.data)
                 break
+        else:
+            # Render a quick 128x128 preview
+            scene = bpy.context.scene
+            if scene:
+                scene.render.resolution_x = 128
+                scene.render.resolution_y = 128
+                scene.render.resolution_percentage = 100
+                scene.render.filepath = thumb_path
+                scene.render.image_settings.file_format = "PNG"
+                bpy.ops.render.render(write_still=True)
     except Exception:
         pass
 
