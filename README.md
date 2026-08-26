@@ -93,9 +93,14 @@ LazyBlend stores its configuration in `~/.config/lazyblend/`:
 }
 ```
 
-## Omarchy Quattro Plugin
+## Omarchy Integration
 
-LazyBlend can be installed as an Omarchy Quattro plugin. See the [plugin/](plugin/) directory for installation instructions.
+Add LazyBlend to your Omarchy menu by adding this to `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+
+```jsonc
+"creative": {"icon": "󰚩", "label": "Creative"},
+"creative.blender": {"icon": "󰚩", "label": "LazyBlend", "action": "omarchy-launch terminal lazyblend", "description": "Browse and launch Blender blend files"},
+```
 
 ## Development
 

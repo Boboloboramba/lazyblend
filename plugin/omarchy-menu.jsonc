@@ -1,5 +1,0 @@
-{
-  "label": "LazyBlend",
-  "command": "omarchy-launch terminal omarchy-lazyblend",
-  "description": "Browse and launch Blender blend files"
-}
