@@ -818,17 +818,32 @@ class InfoScreen(Screen):
         text-style: dim;
         margin: 1 0 0 0;
     }
+    #rename-bar {
+        width: 100%;
+        height: 3;
+        display: none;
+        margin: 1 0 0 0;
+    }
+    #rename-bar.visible {
+        display: block;
+    }
+    #rename-input {
+        width: 100%;
+    }
     """
 
     def __init__(self, info: BlendInfo) -> None:
         super().__init__()
         self.info = info
+        self._editing_node = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="info-tree-container"):
             yield Static(f"[bold]{Path(self.info.path).name}[/bold]", id="info-tree-title")
             yield Tree("Blend File", id="info-tree")
-            yield Static("[dim]Press Escape/q to close. Double-click or Enter to rename editable items.[/dim]", id="info-tree-help")
+            with Horizontal(id="rename-bar"):
+                yield Input(placeholder="Enter new name...", id="rename-input")
+            yield Static("[dim]Esc/q: close | Enter: rename selected item[/dim]", id="info-tree-help")
 
     def on_mount(self) -> None:
         tree = self.query_one("#info-tree", Tree)
@@ -846,7 +861,6 @@ class InfoScreen(Screen):
             scene_node = tree.root.add(f"[bold cyan]Scene: {scene.name}[/bold cyan]")
             scene_node.data = {"type": "scene", "name": scene.name}
 
-            # Objects by type under this scene
             objects_by_type = scene.objects_by_type
             if objects_by_type:
                 objects_node = scene_node.add("[bold]Objects[/bold]")
@@ -854,7 +868,6 @@ class InfoScreen(Screen):
                     label = self._format_object_type(obj_type)
                     objects_node.add_leaf(f"{label}: {count}")
 
-            # Render settings
             if scene.render_engine:
                 engine = scene.render_engine.replace("BLENDER_", "").title()
                 scene_node.add_leaf(f"Render: {engine} | {scene.resolution_x}x{scene.resolution_y}")
@@ -885,7 +898,7 @@ class InfoScreen(Screen):
             if len(meta.object_names) > 50:
                 names_node.add_leaf(f"[dim]...and {len(meta.object_names) - 50} more[/dim]")
 
-        # Cameras and lights summary
+        # Summary
         if meta.camera_count or meta.light_count:
             summary_node = tree.root.add("[bold]Summary[/bold]")
             if meta.camera_count:
@@ -896,69 +909,83 @@ class InfoScreen(Screen):
             summary_node.add_leaf(f"Polygons: {meta.polygon_str}")
             summary_node.add_leaf(f"Vertices: {meta.vertex_str}")
 
-        # Blender version
         if meta.blender_version:
             tree.root.add_leaf(f"[dim]Created with Blender {meta.blender_version}[/dim]")
 
         tree.root.expand_all()
 
     def _format_object_type(self, obj_type: str) -> str:
-        """Format object type code to human-readable label."""
         labels = {
-            "MESH": "Mesh",
-            "LIGHT": "Light",
-            "CAMERA": "Camera",
-            "EMPTY": "Empty",
-            "CURVE": "Curve",
-            "SURFACE": "Surface",
-            "META": "Meta",
-            "FONT": "Text",
-            "ARMATURE": "Armature",
-            "LATTICE": "Lattice",
-            "FORCE": "Force",
-            "HAIR": "Hair",
-            "POINTCLOUD": "Point Cloud",
-            "VOLUME": "Volume",
+            "MESH": "Mesh", "LIGHT": "Light", "CAMERA": "Camera",
+            "EMPTY": "Empty", "CURVE": "Curve", "SURFACE": "Surface",
+            "META": "Meta", "FONT": "Text", "ARMATURE": "Armature",
+            "LATTICE": "Lattice", "FORCE": "Force", "HAIR": "Hair",
+            "POINTCLOUD": "Point Cloud", "VOLUME": "Volume",
             "GPENCIL": "Grease Pencil",
         }
         return labels.get(obj_type, obj_type.title())
 
-    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
-        """Handle node selection - start edit if node is editable."""
-        node = event.node
-        if node.data and node.data.get("type") in ("scene", "object", "collection", "material"):
-            node.edit_label()
+    def _is_editable(self, node) -> bool:
+        return node.data and node.data.get("type") in ("scene", "object", "collection", "material")
 
-    def on_tree_node_renamed(self, event: Tree.NodeRenamed) -> None:
-        """Handle node rename - save to blend file."""
-        node = event.node
-        if not node.data:
+    def on_key(self, event) -> None:
+        if event.key == "escape" or event.key == "q":
+            rename_bar = self.query_one("#rename-bar", Horizontal)
+            if "visible" in rename_bar.classes:
+                rename_bar.remove_class("visible")
+                self._editing_node = None
+                event.stop()
+                return
+            self.app.pop_screen()
             return
 
-        item_type = node.data.get("type", "")
-        old_name = node.data.get("name", "")
-        new_name = event.value
+        if event.key == "enter":
+            tree = self.query_one("#info-tree", Tree)
+            node = tree.cursor_node
+            if node and self._is_editable(node):
+                self._start_rename(node)
+                event.stop()
 
-        if not item_type or not old_name or old_name == new_name:
+    def _start_rename(self, node) -> None:
+        rename_bar = self.query_one("#rename-bar", Horizontal)
+        rename_input = self.query_one("#rename-input", Input)
+        self._editing_node = node
+        rename_input.value = node.data["name"]
+        rename_bar.add_class("visible")
+        rename_input.focus()
+
+    @on(Input.Submitted, "#rename-input")
+    def on_rename_submitted(self, event: Input.Submitted) -> None:
+        if not self._editing_node:
+            return
+
+        new_name = event.value.strip()
+        old_name = self._editing_node.data["name"]
+        item_type = self._editing_node.data["type"]
+
+        if not new_name or new_name == old_name:
+            self._cancel_rename()
             return
 
         # Run rename in background
-        self._run_rename(item_type, old_name, new_name, node)
+        self._run_rename(item_type, old_name, new_name)
 
-    def _run_rename(self, item_type: str, old_name: str, new_name: str, node) -> None:
-        """Rename item in blend file and update node data."""
+    def _cancel_rename(self) -> None:
+        rename_bar = self.query_one("#rename-bar", Horizontal)
+        rename_bar.remove_class("visible")
+        self._editing_node = None
+
+    def _run_rename(self, item_type: str, old_name: str, new_name: str) -> None:
         config = Config.load()
         success = rename_item(
-            self.info.path,
-            item_type,
-            old_name,
-            new_name,
+            self.info.path, item_type, old_name, new_name,
             blender_path=config.blender_path,
         )
 
-        if success:
-            node.data["name"] = new_name
-            # Invalidate cache for this file
+        if success and self._editing_node:
+            self._editing_node.data["name"] = new_name
+            self._editing_node.set_label(new_name)
+            # Invalidate cache
             cache_key = hashlib.md5(self.info.path.encode()).hexdigest()[:16]
             cache_file = CACHE_DIR / f"{cache_key}.json"
             if cache_file.exists():
@@ -966,15 +993,9 @@ class InfoScreen(Screen):
                     cache_file.unlink()
                 except OSError:
                     pass
-            # Update metadata
             self.info.metadata = None
-        else:
-            # Revert the name on failure
-            node._label = f"{item_type.title()}: {old_name}"
 
-    def on_key(self, event) -> None:
-        if event.key == "escape" or event.key == "q":
-            self.app.pop_screen()
+        self._cancel_rename()
 
 
 def main() -> None:
