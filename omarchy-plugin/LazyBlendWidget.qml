@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Io
 import qs.Ui
 
 BarWidget {
@@ -16,15 +15,9 @@ BarWidget {
     text: "\uDB84\uDD72"
     horizontalMargin: 7.5
     tooltipText: "LazyBlend - Blender file browser"
-    font.family: "Symbols Nerd Font"
     onPressed: function(button) {
-      lazyblendProc.running = true
+      if (!root.bar) return
+      root.bar.run("uwsm-app -- xdg-terminal-exec -e lazyblend")
     }
-  }
-
-  Process {
-    id: lazyblendProc
-    command: ["uwsm-app", "--", "xdg-terminal-exec", "-e", "lazyblend"]
-    running: false
   }
 }
