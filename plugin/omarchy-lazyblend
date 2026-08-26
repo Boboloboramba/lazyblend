@@ -1,0 +1,18 @@
+#!/bin/bash
+# LazyBlend Omarchy launcher script
+# This script launches LazyBlend in a terminal
+
+set -euo pipefail
+
+LAZYBLEND_DIR="$HOME/lazyblend"
+VENV="$LAZYBLEND_DIR/.venv"
+
+# Check if lazyblend is installed
+if [ -x "$VENV/bin/lazyblend" ]; then
+    exec "$VENV/bin/lazyblend"
+elif command -v lazyblend &>/dev/null; then
+    exec lazyblend
+else
+    echo "LazyBlend not found. Run: cd ~/lazyblend && pip install -e ." >&2
+    exit 1
+fi
