@@ -137,22 +137,22 @@ class LazyBlendApp(App):
 
     BINDINGS = [
         Binding("q", "quit", "Quit", priority=True),
-        Binding("question_mark", "toggle_help", "Help", show=False),
-        Binding("slash", "focus_search", "Search", show=False),
-        Binding("escape", "clear_search", "Clear", show=False),
-        Binding("o", "open_blender", "Open", show=False),
-        Binding("enter", "open_blender", "Open", show=False),
-        Binding("f", "toggle_favorite", "Favorite", show=False),
-        Binding("r", "rescan", "Rescan", show=False),
-        Binding("d", "open_in_fm", "File Manager", show=False),
-        Binding("c", "copy_path", "Copy Path", show=False),
-        Binding("x", "delete_file", "Delete", show=False),
-        Binding("b", "batch_open", "Batch Open", show=False),
-        Binding("1", "show_all", "All Files", show=False),
-        Binding("2", "show_favorites", "Favorites", show=False),
-        Binding("3", "show_recent", "Recent", show=False),
-        Binding("j", "cursor_down", "Down", show=False, key_display="j"),
-        Binding("k", "cursor_up", "Up", show=False, key_display="k"),
+        Binding("question_mark", "toggle_help", "Help"),
+        Binding("slash", "focus_search", "Search"),
+        Binding("escape", "clear_search", "Clear"),
+        Binding("o", "open_blender", "Open"),
+        Binding("enter", "open_blender", "Open"),
+        Binding("f", "toggle_favorite", "Fav"),
+        Binding("r", "rescan", "Rescan"),
+        Binding("d", "open_in_fm", "Dir"),
+        Binding("c", "copy_path", "Copy"),
+        Binding("x", "delete_file", "Delete"),
+        Binding("b", "batch_open", "Batch"),
+        Binding("1", "show_all", "All"),
+        Binding("2", "show_favorites", "Favs"),
+        Binding("3", "show_recent", "Recent"),
+        Binding("j", "cursor_down", "Down", key_display="j"),
+        Binding("k", "cursor_up", "Up", key_display="k"),
     ]
 
     def __init__(self) -> None:
@@ -291,6 +291,7 @@ class LazyBlendApp(App):
         if event.cursor_row is not None and 0 <= event.cursor_row < len(self.filtered_files):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
+            self.action_open_blender()
 
     @on(Button.Pressed, "#btn-all")
     def on_btn_all(self) -> None:
