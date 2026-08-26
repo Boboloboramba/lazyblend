@@ -295,7 +295,6 @@ class LazyBlendApp(App):
         cached = get_cached_metadata(CACHE_DIR, info.path)
         if cached is not None:
             info.metadata = cached
-            # Update display if still on same row
             table = self.query_one("#file-table", DataTable)
             if table.cursor_row == row_index:
                 self._update_info_panel(info)
@@ -308,27 +307,17 @@ class LazyBlendApp(App):
     @work(thread=True, group="extract")
     def _run_extraction(self, info: BlendInfo, row_index: int) -> None:
         """Extract metadata using Blender in background mode."""
-        worker = get_current_worker()
         metadata = extract_metadata(info.path, self.config.blender_path)
-        if worker.is_cancelled:
-            self.call_from_thread(self._on_extraction_done)
-            return
-        self.call_from_thread(self._on_metadata_extracted, info, row_index, metadata)
+        self._pending_metadata = (info, row_index, metadata)
+        self.set_timer(0, self._apply_metadata)
 
-    def _on_extraction_done(self) -> None:
-        """Called when extraction is cancelled or fails."""
-        self._extracting = False
-
-    def _on_metadata_extracted(
-        self, info: BlendInfo, row_index: int, metadata: BlendMetadata
-    ) -> None:
-        """Handle completed metadata extraction."""
+    def _apply_metadata(self) -> None:
+        """Apply extracted metadata to the UI (runs on event loop)."""
+        info, row_index, metadata = self._pending_metadata
         self._extracting = False
         info.metadata = metadata
         if not metadata.error:
             save_metadata_cache(CACHE_DIR, info.path, metadata)
-
-        # Update display if still on same row
         table = self.query_one("#file-table", DataTable)
         if table.cursor_row == row_index:
             self._update_info_panel(info)
