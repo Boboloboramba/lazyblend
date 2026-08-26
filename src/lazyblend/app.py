@@ -175,7 +175,7 @@ class LazyBlendApp(App):
         self.recent: list[str] = load_recent()
         self.current_filter: str = ""
         self.current_view: str = "all"  # all, favorites, recent
-        self._extract_timer = None
+        self._extracting = False
         self._help_visible = False
         self._selected_rows: set[int] = set()
 
@@ -302,6 +302,7 @@ class LazyBlendApp(App):
             return
 
         # Run extraction in background
+        self._extracting = True
         self._run_extraction(info, row_index)
 
     @work(thread=True, group="extract")
@@ -310,13 +311,19 @@ class LazyBlendApp(App):
         worker = get_current_worker()
         metadata = extract_metadata(info.path, self.config.blender_path)
         if worker.is_cancelled:
+            self.call_from_thread(self._on_extraction_done)
             return
         self.call_from_thread(self._on_metadata_extracted, info, row_index, metadata)
+
+    def _on_extraction_done(self) -> None:
+        """Called when extraction is cancelled or fails."""
+        self._extracting = False
 
     def _on_metadata_extracted(
         self, info: BlendInfo, row_index: int, metadata: BlendMetadata
     ) -> None:
         """Handle completed metadata extraction."""
+        self._extracting = False
         info.metadata = metadata
         if not metadata.error:
             save_metadata_cache(CACHE_DIR, info.path, metadata)
@@ -396,13 +403,9 @@ class LazyBlendApp(App):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
             self._update_selection_status()
-            # Debounce: cancel previous timer, schedule new extraction after 0.3s
-            if self._extract_timer is not None:
-                self._extract_timer.stop()
-            if info.valid and info.metadata is None:
-                self._extract_timer = self.set_timer(
-                    0.3, lambda: self._extract_metadata(info, event.cursor_row)
-                )
+            # Trigger async metadata extraction if not already cached
+            if info.valid and info.metadata is None and not self._extracting:
+                self._extract_metadata(info, event.cursor_row)
 
     @on(Button.Pressed, "#btn-all")
     def on_btn_all(self) -> None:
