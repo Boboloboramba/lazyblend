@@ -228,8 +228,8 @@ def extract_metadata(filepath: str, blender_path: str = "blender") -> BlendMetad
             [
                 blender_path,
                 "-b",  # background mode
-                "--python", script_path,
                 filepath,
+                "--python", script_path,
             ],
             capture_output=True,
             text=True,
