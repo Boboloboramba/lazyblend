@@ -18,6 +18,7 @@ from textual.widgets import (
     Label,
     Button,
     SelectionList,
+    Tree,
 )
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual import on, work
@@ -56,6 +57,7 @@ HELP_TEXT = """\
   space           Toggle file selection
   b               Open all selected files in Blender
   f               Toggle favorite
+  i               Show file info/outliner
 
 [bold cyan]Actions[/bold cyan]
   o               Open in Blender
@@ -177,6 +179,7 @@ class LazyBlendApp(App):
         Binding("enter", "open_blender", "Open"),
         Binding("space", "toggle_select", "Select"),
         Binding("f", "toggle_favorite", "Fav"),
+        Binding("i", "show_info", "Info"),
         Binding("r", "rescan", "Rescan"),
         Binding("d", "open_in_fm", "Dir"),
         Binding("c", "copy_path", "Copy"),
@@ -591,6 +594,13 @@ class LazyBlendApp(App):
         self._update_stats()
         self._apply_filter()
 
+    def action_show_info(self) -> None:
+        """Show detailed outliner view of selected blend file."""
+        info = self._get_selected_file()
+        if info is None:
+            return
+        self.push_screen(InfoScreen(info))
+
     def action_rescan(self) -> None:
         self._update_status("Scanning for blend files...")
         self._run_scan()
@@ -775,6 +785,143 @@ class DeleteConfirmScreen(Screen):
         if event.key == "escape":
             self.app.pop_screen()
             self.app.confirm_delete(False)
+
+
+class InfoScreen(Screen):
+    """Overlay showing blend file contents in an outliner-style tree."""
+
+    CSS = """
+    InfoScreen {
+        align: center middle;
+    }
+    #info-tree-container {
+        width: 70;
+        height: 80%;
+        border: thick $accent;
+        background: $surface;
+        padding: 1;
+    }
+    #info-tree {
+        width: 100%;
+        height: 1fr;
+    }
+    #info-tree-title {
+        width: 100%;
+        text-align: center;
+        text-style: bold;
+        margin: 0 0 1 0;
+    }
+    #info-tree-help {
+        width: 100%;
+        text-align: center;
+        text-style: dim;
+        margin: 1 0 0 0;
+    }
+    """
+
+    def __init__(self, info: BlendInfo) -> None:
+        super().__init__()
+        self.info = info
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="info-tree-container"):
+            yield Static(f"[bold]{Path(self.info.path).name}[/bold]", id="info-tree-title")
+            yield Tree("Blend File", id="info-tree")
+            yield Static("[dim]Press Escape or q to close[/dim]", id="info-tree-help")
+
+    def on_mount(self) -> None:
+        tree = self.query_one("#info-tree", Tree)
+        tree.guide_depth = 3
+
+        if not self.info.metadata or self.info.metadata.error:
+            error = self.info.metadata.error if self.info.metadata else "Not analyzed yet"
+            tree.root.add_leaf(f"[dim]{error}[/dim]")
+            return
+
+        meta = self.info.metadata
+
+        # Root: Scene
+        for scene in meta.scenes:
+            scene_node = tree.root.add(f"[bold cyan]Scene: {scene.name}[/bold cyan]")
+            scene_node.data = {"type": "scene"}
+
+            # Objects by type under this scene
+            objects_by_type = scene.objects_by_type
+            if objects_by_type:
+                objects_node = scene_node.add("[bold]Objects[/bold]")
+                for obj_type, count in sorted(objects_by_type.items(), key=lambda x: -x[1]):
+                    label = self._format_object_type(obj_type)
+                    objects_node.add_leaf(f"{label}: {count}")
+
+            # Render settings
+            if scene.render_engine:
+                engine = scene.render_engine.replace("BLENDER_", "").title()
+                scene_node.add_leaf(f"Render: {engine} | {scene.resolution_x}x{scene.resolution_y}")
+
+            if scene.frame_start != scene.frame_end:
+                scene_node.add_leaf(f"Frames: {scene.frame_start}-{scene.frame_end}")
+
+        # Materials
+        if meta.materials:
+            mat_node = tree.root.add(f"[bold magenta]Materials ({len(meta.materials)})[/bold magenta]")
+            for mat in meta.materials:
+                mat_node.add_leaf(mat)
+
+        # Collections
+        if meta.collections:
+            coll_node = tree.root.add(f"[bold yellow]Collections ({len(meta.collections)})[/bold yellow]")
+            for coll in meta.collections:
+                coll_node.add_leaf(coll)
+
+        # Object names
+        if meta.object_names:
+            names_node = tree.root.add(f"[bold green]Object Names ({len(meta.object_names)})[/bold green]")
+            for name in meta.object_names[:50]:
+                names_node.add_leaf(name)
+            if len(meta.object_names) > 50:
+                names_node.add_leaf(f"[dim]...and {len(meta.object_names) - 50} more[/dim]")
+
+        # Cameras and lights summary
+        if meta.camera_count or meta.light_count:
+            summary_node = tree.root.add("[bold]Summary[/bold]")
+            if meta.camera_count:
+                summary_node.add_leaf(f"Cameras: {meta.camera_count}")
+            if meta.light_count:
+                summary_node.add_leaf(f"Lights: {meta.light_count}")
+            summary_node.add_leaf(f"Total objects: {meta.total_objects}")
+            summary_node.add_leaf(f"Polygons: {meta.polygon_str}")
+            summary_node.add_leaf(f"Vertices: {meta.vertex_str}")
+
+        # Blender version
+        if meta.blender_version:
+            tree.root.add_leaf(f"[dim]Created with Blender {meta.blender_version}[/dim]")
+
+        tree.root.expand_all()
+
+    def _format_object_type(self, obj_type: str) -> str:
+        """Format object type code to human-readable label."""
+        labels = {
+            "MESH": "Mesh",
+            "LIGHT": "Light",
+            "CAMERA": "Camera",
+            "EMPTY": "Empty",
+            "CURVE": "Curve",
+            "SURFACE": "Surface",
+            "META": "Meta",
+            "FONT": "Text",
+            "ARMATURE": "Armature",
+            "LATTICE": "Lattice",
+            "FORCE": "Force",
+            "HAIR": "Hair",
+            "POINTCLOUD": "Point Cloud",
+            "VOLUME": "Volume",
+            "GPENCIL": "Grease Pencil",
+        }
+        return labels.get(obj_type, obj_type.title())
+
+    def on_key(self, event) -> None:
+        if event.key == "escape" or event.key == "q":
+            self.app.pop_screen()
 
 
 def main() -> None:
