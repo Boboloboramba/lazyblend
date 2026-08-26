@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "lazyblend",
+  "name": "LazyBlend",
+  "version": "0.1.0",
+  "author": "robertetheridge",
+  "license": "MIT",
+  "description": "Browse and launch Blender blend files from a fast fuzzy-searching TUI",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "LazyBlendWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "LazyBlend",
+    "description": "Open Blender file browser",
+    "category": "Creative",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

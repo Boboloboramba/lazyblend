@@ -93,14 +93,17 @@ LazyBlend stores its configuration in `~/.config/lazyblend/`:
 }
 ```
 
-## Omarchy Integration
+## Omarchy Bar Widget
 
-Add LazyBlend to your Omarchy menu by adding this to `~/.config/omarchy/extensions/omarchy-menu.jsonc`:
+LazyBlend can be installed as an Omarchy Quattro bar widget. Run the installer:
 
-```jsonc
-"creative": {"icon": "󰚩", "label": "Creative"},
-"creative.blender": {"icon": "󰚩", "label": "LazyBlend", "action": "omarchy-launch terminal lazyblend", "description": "Browse and launch Blender blend files"},
+```bash
+cd ~/lazyblend
+./omarchy-plugin/install.sh
+omarchy restart shell
 ```
+
+This adds a Blender icon (󰚩) to your status bar. Click it to launch LazyBlend in a terminal.
 
 ## Development
 
