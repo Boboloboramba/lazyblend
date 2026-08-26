@@ -82,7 +82,12 @@ class Config:
         if CONFIG_FILE.exists():
             try:
                 data = json.loads(CONFIG_FILE.read_text())
-                return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+                config = cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+                # Re-detect if saved blender path doesn't exist
+                import shutil as _shutil
+                if not _shutil.which(config.blender_path) and not Path(config.blender_path).exists():
+                    config.blender_path = find_blender()
+                return config
             except (json.JSONDecodeError, TypeError):
                 pass
         return cls()
