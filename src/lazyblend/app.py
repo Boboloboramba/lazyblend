@@ -946,10 +946,10 @@ class InfoScreen(Screen):
 
         # Vim navigation for tree
         if event.key == "j":
-            tree.cursor_down()
+            tree.action_cursor_down()
             event.stop()
         elif event.key == "k":
-            tree.cursor_up()
+            tree.action_cursor_up()
             event.stop()
         elif event.key == "enter":
             node = tree.cursor_node
@@ -958,12 +958,12 @@ class InfoScreen(Screen):
                 event.stop()
         elif event.key == "right":
             node = tree.cursor_node
-            if node and node.children and not node.is_expanded:
+            if node and node.children:
                 node.expand()
                 event.stop()
         elif event.key == "left":
             node = tree.cursor_node
-            if node and node.is_expanded:
+            if node:
                 node.collapse()
                 event.stop()
 
