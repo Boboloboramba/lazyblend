@@ -929,21 +929,42 @@ class InfoScreen(Screen):
         return node.data and node.data.get("type") in ("scene", "object", "collection", "material")
 
     def on_key(self, event) -> None:
-        if event.key == "escape" or event.key == "q":
-            rename_bar = self.query_one("#rename-bar", Horizontal)
-            if "visible" in rename_bar.classes:
-                rename_bar.remove_class("visible")
-                self._editing_node = None
+        # Handle rename bar keys first
+        rename_bar = self.query_one("#rename-bar", Horizontal)
+        if "visible" in rename_bar.classes:
+            if event.key == "escape":
+                self._cancel_rename()
                 event.stop()
                 return
+            return  # Let Input handle other keys
+
+        if event.key == "escape" or event.key == "q":
             self.app.pop_screen()
             return
 
-        if event.key == "enter":
-            tree = self.query_one("#info-tree", Tree)
+        tree = self.query_one("#info-tree", Tree)
+
+        # Vim navigation for tree
+        if event.key == "j":
+            tree.cursor_down()
+            event.stop()
+        elif event.key == "k":
+            tree.cursor_up()
+            event.stop()
+        elif event.key == "enter":
             node = tree.cursor_node
             if node and self._is_editable(node):
                 self._start_rename(node)
+                event.stop()
+        elif event.key == "right":
+            node = tree.cursor_node
+            if node and node.children and not node.is_expanded:
+                node.expand()
+                event.stop()
+        elif event.key == "left":
+            node = tree.cursor_node
+            if node and node.is_expanded:
+                node.collapse()
                 event.stop()
 
     def _start_rename(self, node) -> None:
@@ -968,23 +989,25 @@ class InfoScreen(Screen):
             return
 
         # Run rename in background
-        self._run_rename(item_type, old_name, new_name)
+        node = self._editing_node
+        self._cancel_rename()
+        self._run_rename(item_type, old_name, new_name, node)
 
     def _cancel_rename(self) -> None:
         rename_bar = self.query_one("#rename-bar", Horizontal)
         rename_bar.remove_class("visible")
         self._editing_node = None
 
-    def _run_rename(self, item_type: str, old_name: str, new_name: str) -> None:
+    def _run_rename(self, item_type: str, old_name: str, new_name: str, node) -> None:
         config = Config.load()
         success = rename_item(
             self.info.path, item_type, old_name, new_name,
             blender_path=config.blender_path,
         )
 
-        if success and self._editing_node:
-            self._editing_node.data["name"] = new_name
-            self._editing_node.set_label(new_name)
+        if success:
+            node.data["name"] = new_name
+            node.set_label(new_name)
             # Invalidate cache
             cache_key = hashlib.md5(self.info.path.encode()).hexdigest()[:16]
             cache_file = CACHE_DIR / f"{cache_key}.json"
