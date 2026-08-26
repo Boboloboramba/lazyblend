@@ -43,9 +43,12 @@ for scene in bpy.data.scenes:
     })
 
 objects_by_type = {}
+object_names = []
 for obj in bpy.data.objects:
     t = obj.type
     objects_by_type[t] = objects_by_type.get(t, 0) + 1
+    if obj.name:
+        object_names.append(obj.name)
 
 materials = []
 for m in bpy.data.materials:
@@ -67,6 +70,7 @@ result = {
     "scenes": scenes,
     "total_objects": len(bpy.data.objects),
     "objects_by_type": objects_by_type,
+    "object_names": object_names,
     "total_polygons": sum(len(m.polygons) for m in bpy.data.meshes),
     "total_vertices": sum(len(m.vertices) for m in bpy.data.meshes),
     "materials": materials,
@@ -109,6 +113,7 @@ class BlendMetadata:
     scenes: list[SceneInfo] = field(default_factory=list)
     total_objects: int = 0
     objects_by_type: dict[str, int] = field(default_factory=dict)
+    object_names: list[str] = field(default_factory=list)
     total_polygons: int = 0
     total_vertices: int = 0
     materials: list[str] = field(default_factory=list)
@@ -304,6 +309,7 @@ def _dict_to_metadata(
         scenes=scenes,
         total_objects=data.get("total_objects", 0),
         objects_by_type=data.get("objects_by_type", {}),
+        object_names=data.get("object_names", []),
         total_polygons=data.get("total_polygons", 0),
         total_vertices=data.get("total_vertices", 0),
         materials=data.get("materials", []),

@@ -345,11 +345,24 @@ class LazyBlendApp(App):
             scored = []
             for info in pool:
                 name = Path(info.path).name.lower()
-                # Use token_set_ratio for better multi-word matching
                 score = max(
                     fuzz.partial_ratio(query, name),
                     fuzz.token_set_ratio(query, name),
                 )
+                if info.metadata and not info.metadata.error:
+                    meta = info.metadata
+                    searchable = " ".join([
+                        name,
+                        " ".join(meta.collections),
+                        " ".join(meta.materials),
+                        " ".join(meta.object_names[:50]),
+                        " ".join(s.name for s in meta.scenes),
+                    ]).lower()
+                    meta_score = max(
+                        fuzz.partial_ratio(query, searchable),
+                        fuzz.token_set_ratio(query, searchable),
+                    )
+                    score = max(score, meta_score)
                 if score > 40:
                     scored.append((score, info))
             scored.sort(key=lambda x: x[0], reverse=True)
