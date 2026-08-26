@@ -124,9 +124,9 @@ class LazyBlendApp(App):
 
     #thumbnail-panel {
         width: auto;
-        min-width: 26;
+        min-width: 38;
         height: auto;
-        max-height: 12;
+        max-height: 16;
         border: solid $accent;
         padding: 0 1;
         background: $surface;
@@ -262,7 +262,7 @@ class LazyBlendApp(App):
 
         # Render thumbnail in separate panel
         if info.thumbnail and Path(info.thumbnail).exists():
-            thumb_art = self._render_thumbnail(info.thumbnail, width=24, height=10)
+            thumb_art = self._render_thumbnail(info.thumbnail, width=36, height=14)
             if thumb_art:
                 thumb_panel.update(thumb_art)
                 thumb_panel.add_class("visible")
