@@ -425,12 +425,10 @@ class LazyBlendApp(App):
         if count > 0:
             self._update_status(f"[bold]{count}[/bold] file{'s' if count != 1 else ''} selected — press [bold]b[/bold] to open all")
         else:
-            self._apply_filter()
+            self._update_status(f"Showing {len(self.filtered_files)} file{'s' if len(self.filtered_files) != 1 else ''}")
 
     def _update_row_styles(self) -> None:
-        table = self.query_one("#file-table", DataTable)
-        # DataTable doesn't support per-row styling easily, so we update the display
-        self._populate_table()
+        pass
 
     def action_clear_search(self) -> None:
         search = self.query_one("#search", Input)
