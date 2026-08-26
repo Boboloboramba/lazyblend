@@ -233,6 +233,13 @@ class LazyBlendApp(App):
             f"Path: {info.path}",
             f"Size: {info.size_str} ({info.size:,} bytes) | Modified: {info.modified_str}",
         ]
+
+        # Render thumbnail as block art
+        if info.thumbnail and Path(info.thumbnail).exists():
+            thumb_art = self._render_thumbnail(info.thumbnail, width=24, height=8)
+            if thumb_art:
+                lines.append(thumb_art)
+
         if info.valid:
             version_parts = [info.version, info.pointer_size, info.endianness]
             lines.append(f"Version: {' | '.join(version_parts)}")
@@ -289,14 +296,33 @@ class LazyBlendApp(App):
         elif info.valid and info.metadata is None:
             lines.append("[dim]Analyzing...[/dim]")
 
-        # Show thumbnail info
-        if info.thumbnail and Path(info.thumbnail).exists():
-            lines.append(f"[dim]Thumbnail: {info.thumbnail}[/dim]")
-
         if info.path in self.favorites:
             lines.append("[yellow]★ Favorite[/yellow]")
 
         panel.update("\n".join(lines))
+
+    def _render_thumbnail(self, thumb_path: str, width: int = 24, height: int = 8) -> str:
+        """Render a thumbnail image as colored Unicode block art using Rich markup."""
+        try:
+            from PIL import Image
+
+            img = Image.open(thumb_path)
+            img = img.convert("RGB")
+            img = img.resize((width, height), Image.Resampling.LANCZOS)
+            pixels = list(img.getdata())
+
+            result = []
+            for y in range(0, height, 2):
+                row = ""
+                for x in range(width):
+                    top = pixels[y * width + x]
+                    bot = pixels[(y + 1) * width + x] if y + 1 < height else (0, 0, 0)
+                    # Use Rich markup: [on #RRGGBB] for background, [#RRGGBB] for foreground
+                    row += f"[#{top[0]:02x}{top[1]:02x}{top[2]:02x}][on #{bot[0]:02x}{bot[1]:02x}{bot[2]:02x}]\u2580[/on]"
+                result.append(row)
+            return "\n".join(result)
+        except Exception:
+            return ""
 
     @work(thread=True, group="extract")
     def _extract_all_metadata(self) -> None:
