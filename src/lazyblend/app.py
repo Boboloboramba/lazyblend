@@ -175,7 +175,6 @@ class LazyBlendApp(App):
         self.recent: list[str] = load_recent()
         self.current_filter: str = ""
         self.current_view: str = "all"  # all, favorites, recent
-        self._extracting = False
         self._help_visible = False
         self._selected_rows: set[int] = set()
 
@@ -291,36 +290,25 @@ class LazyBlendApp(App):
 
     def _extract_metadata(self, info: BlendInfo, row_index: int) -> None:
         """Trigger async metadata extraction for a blend file."""
-        # Check cache first
         cached = get_cached_metadata(CACHE_DIR, info.path)
         if cached is not None:
             info.metadata = cached
-            table = self.query_one("#file-table", DataTable)
-            if table.cursor_row == row_index:
-                self._update_info_panel(info)
+            self._update_info_panel(info)
             return
-
-        # Run extraction in background
-        self._extracting = True
         self._run_extraction(info, row_index)
 
     @work(thread=True, group="extract")
     def _run_extraction(self, info: BlendInfo, row_index: int) -> None:
         """Extract metadata using Blender in background mode."""
         metadata = extract_metadata(info.path, self.config.blender_path)
-        self._pending_metadata = (info, row_index, metadata)
-        self.set_timer(0, self._apply_metadata)
+        self.call_from_thread(self._on_metadata_extracted, info, row_index, metadata)
 
-    def _apply_metadata(self) -> None:
-        """Apply extracted metadata to the UI (runs on event loop)."""
-        info, row_index, metadata = self._pending_metadata
-        self._extracting = False
+    def _on_metadata_extracted(self, info: BlendInfo, row_index: int, metadata: BlendMetadata) -> None:
+        """Handle completed metadata extraction."""
         info.metadata = metadata
         if not metadata.error:
             save_metadata_cache(CACHE_DIR, info.path, metadata)
-        table = self.query_one("#file-table", DataTable)
-        if table.cursor_row == row_index:
-            self._update_info_panel(info)
+        self._update_info_panel(info)
 
     def _populate_table(self) -> None:
         table = self.query_one("#file-table", DataTable)
@@ -392,8 +380,7 @@ class LazyBlendApp(App):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
             self._update_selection_status()
-            # Trigger async metadata extraction if not already cached
-            if info.valid and info.metadata is None and not self._extracting:
+            if info.valid and info.metadata is None:
                 self._extract_metadata(info, event.cursor_row)
 
     @on(Button.Pressed, "#btn-all")
