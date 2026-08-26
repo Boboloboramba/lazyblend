@@ -1,21 +1,19 @@
 {
   "schemaVersion": 1,
-  "id": "lazyblend",
+  "id": "io.github.Boboloboramba.lazyblend",
   "name": "LazyBlend",
   "version": "0.1.0",
-  "author": "robertetheridge",
+  "author": "Robert Etheridge",
   "license": "MIT",
-  "description": "Browse and launch Blender blend files from a fast fuzzy-searching TUI",
+  "description": "Browse and launch Blender .blend files from a fast fuzzy-searching TUI with deep file inspection, thumbnails, and metadata caching",
   "kinds": [
     "bar-widget"
   ],
-  "keepLoaded": true,
   "entryPoints": {
     "barWidget": "LazyBlendWidget.qml"
   },
   "barWidget": {
     "displayName": "LazyBlend",
-    "description": "Open Blender file browser",
     "category": "Creative",
     "allowMultiple": false,
     "defaultSection": "right"

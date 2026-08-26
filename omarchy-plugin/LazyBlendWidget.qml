@@ -3,7 +3,7 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "lazyblend"
+  moduleName: "io.github.Boboloboramba.lazyblend"
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight

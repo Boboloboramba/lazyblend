@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_DIR="$HOME/.config/omarchy/plugins/lazyblend"
+PLUGIN_DIR="$HOME/.config/omarchy/plugins/io.github.Boboloboramba.lazyblend"
 
 echo "Installing LazyBlend bar widget..."
 
@@ -22,17 +22,15 @@ ln -sf "$SCRIPT_DIR/LazyBlendWidget.qml" "$PLUGIN_DIR/LazyBlendWidget.qml"
 
 # Add to shell.json if not already present
 SHELL_JSON="$HOME/.config/omarchy/shell.json"
-if ! grep -q '"lazyblend"' "$SHELL_JSON" 2>/dev/null; then
+if ! grep -q '"io.github.Boboloboramba.lazyblend"' "$SHELL_JSON" 2>/dev/null; then
   echo "Adding lazyblend to bar layout..."
-  # Use python to safely modify JSON
   python3 -c "
 import json
 with open('$SHELL_JSON') as f:
     cfg = json.load(f)
 right = cfg.get('bar', {}).get('layout', {}).get('right', [])
-# Insert after tray
 insert_idx = next((i for i, w in enumerate(right) if w.get('id') == 'omarchy.tray'), 0)
-right.insert(insert_idx + 1, {'id': 'lazyblend'})
+right.insert(insert_idx + 1, {'id': 'io.github.Boboloboramba.lazyblend'})
 with open('$SHELL_JSON', 'w') as f:
     json.dump(cfg, f, indent=2)
 print('Added lazyblend to bar layout')
