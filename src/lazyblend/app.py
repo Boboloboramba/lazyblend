@@ -31,6 +31,7 @@ from lazyblend.blend_inspector import (
     extract_metadata,
     get_cached_metadata,
     save_metadata_cache,
+    rename_item,
 )
 from lazyblend.scanner import scan_for_blends
 from lazyblend.config import (
@@ -827,7 +828,7 @@ class InfoScreen(Screen):
         with Vertical(id="info-tree-container"):
             yield Static(f"[bold]{Path(self.info.path).name}[/bold]", id="info-tree-title")
             yield Tree("Blend File", id="info-tree")
-            yield Static("[dim]Press Escape or q to close[/dim]", id="info-tree-help")
+            yield Static("[dim]Press Escape/q to close. Double-click or Enter to rename editable items.[/dim]", id="info-tree-help")
 
     def on_mount(self) -> None:
         tree = self.query_one("#info-tree", Tree)
@@ -840,10 +841,10 @@ class InfoScreen(Screen):
 
         meta = self.info.metadata
 
-        # Root: Scene
+        # Scenes
         for scene in meta.scenes:
             scene_node = tree.root.add(f"[bold cyan]Scene: {scene.name}[/bold cyan]")
-            scene_node.data = {"type": "scene"}
+            scene_node.data = {"type": "scene", "name": scene.name}
 
             # Objects by type under this scene
             objects_by_type = scene.objects_by_type
@@ -865,19 +866,22 @@ class InfoScreen(Screen):
         if meta.materials:
             mat_node = tree.root.add(f"[bold magenta]Materials ({len(meta.materials)})[/bold magenta]")
             for mat in meta.materials:
-                mat_node.add_leaf(mat)
+                child = mat_node.add(mat)
+                child.data = {"type": "material", "name": mat}
 
         # Collections
         if meta.collections:
             coll_node = tree.root.add(f"[bold yellow]Collections ({len(meta.collections)})[/bold yellow]")
             for coll in meta.collections:
-                coll_node.add_leaf(coll)
+                child = coll_node.add(coll)
+                child.data = {"type": "collection", "name": coll}
 
         # Object names
         if meta.object_names:
             names_node = tree.root.add(f"[bold green]Object Names ({len(meta.object_names)})[/bold green]")
             for name in meta.object_names[:50]:
-                names_node.add_leaf(name)
+                child = names_node.add(name)
+                child.data = {"type": "object", "name": name}
             if len(meta.object_names) > 50:
                 names_node.add_leaf(f"[dim]...and {len(meta.object_names) - 50} more[/dim]")
 
@@ -918,6 +922,55 @@ class InfoScreen(Screen):
             "GPENCIL": "Grease Pencil",
         }
         return labels.get(obj_type, obj_type.title())
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Handle node selection - start edit if node is editable."""
+        node = event.node
+        if node.data and node.data.get("type") in ("scene", "object", "collection", "material"):
+            node.edit_label()
+
+    def on_tree_node_renamed(self, event: Tree.NodeRenamed) -> None:
+        """Handle node rename - save to blend file."""
+        node = event.node
+        if not node.data:
+            return
+
+        item_type = node.data.get("type", "")
+        old_name = node.data.get("name", "")
+        new_name = event.value
+
+        if not item_type or not old_name or old_name == new_name:
+            return
+
+        # Run rename in background
+        self._run_rename(item_type, old_name, new_name, node)
+
+    def _run_rename(self, item_type: str, old_name: str, new_name: str, node) -> None:
+        """Rename item in blend file and update node data."""
+        config = Config.load()
+        success = rename_item(
+            self.info.path,
+            item_type,
+            old_name,
+            new_name,
+            blender_path=config.blender_path,
+        )
+
+        if success:
+            node.data["name"] = new_name
+            # Invalidate cache for this file
+            cache_key = hashlib.md5(self.info.path.encode()).hexdigest()[:16]
+            cache_file = CACHE_DIR / f"{cache_key}.json"
+            if cache_file.exists():
+                try:
+                    cache_file.unlink()
+                except OSError:
+                    pass
+            # Update metadata
+            self.info.metadata = None
+        else:
+            # Revert the name on failure
+            node._label = f"{item_type.title()}: {old_name}"
 
     def on_key(self, event) -> None:
         if event.key == "escape" or event.key == "q":

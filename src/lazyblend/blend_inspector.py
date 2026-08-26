@@ -117,6 +117,65 @@ with open(output_path, "w") as f:
     json.dump(result, f)
 """
 
+RENAME_SCRIPT = r"""
+import bpy, sys, os
+
+# Get item type, old name, and new name from environment variables
+item_type = os.environ.get("LAZYBLEND_RENAME_TYPE", "")
+old_name = os.environ.get("LAZYBLEND_RENAME_OLD", "")
+new_name = os.environ.get("LAZYBLEND_RENAME_NEW", "")
+
+if not item_type or not old_name or not new_name:
+    sys.exit(1)
+
+renamed = False
+
+if item_type == "scene":
+    item = bpy.data.scenes.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+elif item_type == "object":
+    item = bpy.data.objects.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+elif item_type == "collection":
+    item = bpy.data.collections.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+elif item_type == "material":
+    item = bpy.data.materials.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+elif item_type == "mesh":
+    item = bpy.data.meshes.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+elif item_type == "light":
+    item = bpy.data.lights.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+elif item_type == "camera":
+    item = bpy.data.cameras.get(old_name)
+    if item:
+        item.name = new_name
+        renamed = True
+
+if renamed:
+    bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
+"""
+
 
 @dataclass
 class SceneInfo:
@@ -370,3 +429,53 @@ def _dict_to_metadata(
         blender_version=data.get("blender_version", ""),
         extracted_at=base.extracted_at if base else time.time(),
     )
+
+
+def rename_item(
+    filepath: str,
+    item_type: str,
+    old_name: str,
+    new_name: str,
+    blender_path: str = "blender",
+) -> bool:
+    """Rename an item in a blend file using Blender.
+
+    Returns True if successful, False otherwise.
+    """
+    if not os.path.exists(filepath):
+        return False
+
+    import uuid
+
+    uid = uuid.uuid4().hex[:8]
+    script_path = f"/tmp/lazyblend_rename_{uid}.py"
+
+    try:
+        with open(script_path, "w") as f:
+            f.write(RENAME_SCRIPT)
+
+        env = {
+            **os.environ,
+            "LAZYBLEND_RENAME_TYPE": item_type,
+            "LAZYBLEND_RENAME_OLD": old_name,
+            "LAZYBLEND_RENAME_NEW": new_name,
+        }
+
+        result = subprocess.run(
+            [blender_path, "-b", filepath, "--python", script_path],
+            capture_output=True,
+            text=True,
+            timeout=EXTRACT_TIMEOUT,
+            env=env,
+        )
+
+        return result.returncode == 0
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return False
+    finally:
+        if os.path.exists(script_path):
+            try:
+                os.unlink(script_path)
+            except OSError:
+                pass
