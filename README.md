@@ -8,11 +8,16 @@ A fast, fuzzy-searching TUI for browsing and launching Blender `.blend` files. B
 
 ![LazyBlend with metadata](screenshot-2026-08-26_08-38-23.png)
 
+![LazyBlend info overlay](screenshot-2026-08-26_15-59-15.png)
+
 ## Features
 
 - **Fuzzy search** — finds blend files by filename, collection names, object names, material names, and scene names
 - **Deep file inspection** — runs Blender in background mode to extract scenes, objects, polygons, materials, collections, render settings, and frame ranges
 - **File header info** — shows file size, modification date, Blender version, and compression from the file header
+- **Thumbnail previews** — renders 128x128 thumbnails from blend files and displays them as Unicode block art in the info panel
+- **Info overlay** — outliner-style tree view showing scenes, objects by type, materials, and collections with expand/collapse
+- **Rename support** — rename objects, scenes, collections, and materials directly from the info overlay (`r` key)
 - **Favorites** — bookmark frequently used blend files
 - **Recent files** — tracks recently opened files
 - **Directory scanning** — recursively scans configured directories for blend files
@@ -24,6 +29,7 @@ A fast, fuzzy-searching TUI for browsing and launching Blender `.blend` files. B
 - **Vim-style navigation** — `j`/`k` to move, `/` to search, `enter` to open
 - **Omarchy plugin** — install as an Omarchy Quattro shell plugin
 - **Metadata caching** — extracted metadata is cached in `~/.config/lazyblend/cache/` for instant loading
+- **Thumbnail caching** — rendered thumbnails are cached as PNG files in `~/.config/lazyblend/cache/thumbnails/`
 
 ## Install
 
@@ -64,6 +70,7 @@ python src/lazyblend/app.py
 | `/` | Focus search filter |
 | `escape` | Clear search / close help |
 | `f` | Toggle favorite |
+| `i` | Show file info/outliner overlay |
 | `d` | Open containing folder in file manager |
 | `c` | Copy file path to clipboard |
 | `x` | Delete file (with confirmation) |
@@ -74,6 +81,17 @@ python src/lazyblend/app.py
 | `3` | Show recent only |
 | `?` | Toggle help overlay |
 | `q` | Quit |
+
+### Info Overlay keys (`i`)
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Navigate up/down |
+| `l` | Expand node |
+| `h` | Collapse node |
+| `r` | Rename item (scenes, objects, collections, materials) |
+| `enter` | Confirm rename |
+| `escape` / `q` | Close overlay |
 
 ## Configuration
 
