@@ -42,109 +42,6 @@ from lazyblend.config import (
 )
 
 
-def detect_sixel_support():
-    """Detect if the terminal supports Sixel graphics."""
-    # Check for explicit override
-    if os.environ.get("LAZYBLEND_SIXEL", "").lower() in ("1", "true", "yes"):
-        return True
-
-    # Check common Sixel-capable terminal indicators
-    term = os.environ.get("TERM", "").lower()
-    term_program = os.environ.get("TERM_PROGRAM", "").lower()
-
-    # foot, mlterm, xterm with Sixel, etc.
-    sixel_terms = ["foot", "mlterm", "xterm-sixel"]
-    if any(t in term for t in sixel_terms):
-        return True
-    if any(t in term_program for t in sixel_terms):
-        return True
-
-    # Check if running under known Sixel-capable terminal by parent process
-    try:
-        ppid = os.getppid()
-        with open(f"/proc/{ppid}/comm", "r") as f:
-            parent = f.read().strip().lower()
-            if "foot" in parent:
-                return True
-        # Also check grandparent (in case of wrapper processes)
-        with open(f"/proc/{ppid}/status", "r") as f:
-            for line in f:
-                if line.startswith("PPid:"):
-                    gppid = line.split()[1]
-                    with open(f"/proc/{gppid}/comm", "r") as f2:
-                        gp = f2.read().strip().lower()
-                        if "foot" in gp:
-                            return True
-    except (OSError, PermissionError):
-        pass
-
-    # Check if img2sixel is available (indicates Sixel support)
-    try:
-        subprocess.run(["which", "img2sixel"], capture_output=True, check=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    return False
-
-
-def image_to_sixel(img, max_width=300, max_height=200):
-    """Convert PIL Image to Sixel escape sequence."""
-    from PIL import Image as PILImage
-
-    img = img.convert("RGB")
-    w, h = img.size
-    ratio = min(max_width / w, max_height / h, 1.0)
-    if ratio < 1.0:
-        w, h = int(w * ratio), int(h * ratio)
-        img = img.resize((w, h), PILImage.Resampling.LANCZOS)
-
-    img_q = img.quantize(colors=256, method=PILImage.Quantize.MEDIANCUT)
-    palette = img_q.getpalette()
-    quantized = list(img_q.getdata())
-
-    colors = {}
-    for idx in set(quantized):
-        r, g, b = palette[idx * 3], palette[idx * 3 + 1], palette[idx * 3 + 2]
-        colors[idx] = (r, g, b)
-
-    ESC = chr(27)
-    out = ESC + "Pq"
-
-    for idx, (r, g, b) in colors.items():
-        r6 = int(r / 255 * 100)
-        g6 = int(g / 255 * 100)
-        b6 = int(b / 255 * 100)
-        out += f"#{idx};2;{r6};{g6};{b6}"
-
-    for y_start in range(0, h, 6):
-        for idx in colors:
-            out += f"#{idx}z"
-            for y in range(y_start, min(y_start + 6, h)):
-                row_data = ""
-                for x in range(w):
-                    row_data += "1" if quantized[y * w + x] == idx else "0"
-                while row_data:
-                    chunk = row_data[:6]
-                    row_data = row_data[6:]
-                    val = 0
-                    for i, b in enumerate(chunk):
-                        if b == "1":
-                            val |= 1 << (5 - i)
-                    out += chr(val + 63)
-                if y < min(y_start + 5, h - 1):
-                    out += chr(36)  # $ = carriage return
-            out += chr(45)  # - = new line
-        if y_start + 6 < h:
-            out += chr(59)  # ; = move down
-
-    out += ESC + chr(92)  # ST = string terminator
-    return out
-
-
-HAS_SIXEL = detect_sixel_support()
-
-
 HELP_TEXT = """\
 [bold]LazyBlend[/bold] - Blender File Manager
 
@@ -445,20 +342,6 @@ class LazyBlendApp(App):
 
             img = Image.open(thumb_path)
             img = img.convert("RGB")
-
-            # Use Sixel if terminal supports it
-            if HAS_SIXEL:
-                sixel_data = image_to_sixel(img, max_width=300, max_height=200)
-                # Write Sixel directly to terminal
-                try:
-                    fd = os.open("/dev/tty", os.O_WRONLY)
-                    os.write(fd, sixel_data.encode("latin-1"))
-                    os.close(fd)
-                    return "[dim]Thumbnail rendered above[/dim]"
-                except Exception:
-                    pass
-
-            # Fallback to block art
             img = img.filter(ImageFilter.SMOOTH)
             img = img.resize((width, height * 2), Image.Resampling.LANCZOS)
             pixels = list(img.getdata())
