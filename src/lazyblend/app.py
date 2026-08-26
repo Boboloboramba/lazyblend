@@ -177,7 +177,7 @@ class LazyBlendApp(App):
         Binding("slash", "focus_search", "Search"),
         Binding("escape", "clear_search", "Clear"),
         Binding("o", "open_blender", "Open"),
-        Binding("enter", "open_blender", "Open"),
+        Binding("enter", "open_blender", "Open", priority=True),
         Binding("space", "toggle_select", "Select"),
         Binding("f", "toggle_favorite", "Fav"),
         Binding("i", "show_info", "Info"),
