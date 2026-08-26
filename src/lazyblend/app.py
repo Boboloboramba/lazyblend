@@ -288,27 +288,23 @@ class LazyBlendApp(App):
 
         panel.update("\n".join(lines))
 
-    def _extract_metadata(self, info: BlendInfo, row_index: int) -> None:
-        """Trigger async metadata extraction for a blend file."""
-        cached = get_cached_metadata(CACHE_DIR, info.path)
-        if cached is not None:
-            info.metadata = cached
-            self._update_info_panel(info)
-            return
-        self._run_extraction(info, row_index)
-
     @work(thread=True, group="extract")
-    def _run_extraction(self, info: BlendInfo, row_index: int) -> None:
-        """Extract metadata using Blender in background mode."""
-        metadata = extract_metadata(info.path, self.config.blender_path)
-        self.call_from_thread(self._on_metadata_extracted, info, row_index, metadata)
-
-    def _on_metadata_extracted(self, info: BlendInfo, row_index: int, metadata: BlendMetadata) -> None:
-        """Handle completed metadata extraction."""
-        info.metadata = metadata
-        if not metadata.error:
-            save_metadata_cache(CACHE_DIR, info.path, metadata)
-        self._update_info_panel(info)
+    def _extract_all_metadata(self) -> None:
+        """Extract metadata for all uncached blend files in the background."""
+        worker = get_current_worker()
+        for info in self.all_files:
+            if worker.is_cancelled:
+                return
+            if not info.valid or info.metadata is not None:
+                continue
+            cached = get_cached_metadata(CACHE_DIR, info.path)
+            if cached is not None:
+                info.metadata = cached
+                continue
+            metadata = extract_metadata(info.path, self.config.blender_path)
+            info.metadata = metadata
+            if not metadata.error:
+                save_metadata_cache(CACHE_DIR, info.path, metadata)
 
     def _populate_table(self) -> None:
         table = self.query_one("#file-table", DataTable)
@@ -380,8 +376,6 @@ class LazyBlendApp(App):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
             self._update_selection_status()
-            if info.valid and info.metadata is None:
-                self._extract_metadata(info, event.cursor_row)
 
     @on(Button.Pressed, "#btn-all")
     def on_btn_all(self) -> None:
@@ -521,6 +515,7 @@ class LazyBlendApp(App):
         self._update_stats()
         self._apply_filter()
         self._update_status(f"Found {len(files)} blend files")
+        self._extract_all_metadata()
 
     def action_open_in_fm(self) -> None:
         info = self._get_selected_file()
