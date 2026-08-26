@@ -107,13 +107,34 @@ class LazyBlendApp(App):
         height: 1fr;
     }
 
+    #info-container {
+        height: auto;
+        max-height: 12;
+        margin: 1 0 0 0;
+    }
+
     #info-panel {
+        width: 1fr;
         height: auto;
         max-height: 12;
         border: solid $accent;
         padding: 1;
-        margin: 1 0 0 0;
         background: $surface;
+    }
+
+    #thumbnail-panel {
+        width: auto;
+        min-width: 26;
+        height: auto;
+        max-height: 12;
+        border: solid $accent;
+        padding: 0 1;
+        background: $surface;
+        display: none;
+    }
+
+    #thumbnail-panel.visible {
+        display: block;
     }
 
     #help-overlay {
@@ -195,7 +216,9 @@ class LazyBlendApp(App):
             with Vertical(id="main-panel"):
                 yield Input(placeholder="Type to filter blend files... [↑↓ navigate, enter to open]", id="search")
                 yield DataTable(id="file-table")
-                yield Static("Select a file to see details", id="info-panel")
+                with Horizontal(id="info-container"):
+                    yield Static("Select a file to see details", id="info-panel")
+                    yield Static("", id="thumbnail-panel")
 
         yield Footer()
         yield Static("", id="status-bar")
@@ -223,8 +246,11 @@ class LazyBlendApp(App):
 
     def _update_info_panel(self, info: BlendInfo | None) -> None:
         panel = self.query_one("#info-panel", Static)
+        thumb_panel = self.query_one("#thumbnail-panel", Static)
         if info is None:
             panel.update("Select a file to see details")
+            thumb_panel.update("")
+            thumb_panel.remove_class("visible")
             return
 
         path = Path(info.path)
@@ -234,11 +260,18 @@ class LazyBlendApp(App):
             f"Size: {info.size_str} ({info.size:,} bytes) | Modified: {info.modified_str}",
         ]
 
-        # Render thumbnail as block art
+        # Render thumbnail in separate panel
         if info.thumbnail and Path(info.thumbnail).exists():
-            thumb_art = self._render_thumbnail(info.thumbnail, width=24, height=8)
+            thumb_art = self._render_thumbnail(info.thumbnail, width=24, height=10)
             if thumb_art:
-                lines.append(thumb_art)
+                thumb_panel.update(thumb_art)
+                thumb_panel.add_class("visible")
+            else:
+                thumb_panel.update("")
+                thumb_panel.remove_class("visible")
+        else:
+            thumb_panel.update("")
+            thumb_panel.remove_class("visible")
 
         if info.valid:
             version_parts = [info.version, info.pointer_size, info.endianness]
@@ -301,23 +334,27 @@ class LazyBlendApp(App):
 
         panel.update("\n".join(lines))
 
-    def _render_thumbnail(self, thumb_path: str, width: int = 24, height: int = 8) -> str:
+    def _render_thumbnail(self, thumb_path: str, width: int = 24, height: int = 10) -> str:
         """Render a thumbnail image as colored Unicode block art using Rich markup."""
         try:
-            from PIL import Image
+            from PIL import Image, ImageFilter
 
             img = Image.open(thumb_path)
             img = img.convert("RGB")
-            img = img.resize((width, height), Image.Resampling.LANCZOS)
+            # Apply slight blur for smoother downscale
+            img = img.filter(ImageFilter.SMOOTH)
+            img = img.resize((width, height * 2), Image.Resampling.LANCZOS)
             pixels = list(img.getdata())
 
             result = []
-            for y in range(0, height, 2):
+            for y in range(0, height * 2, 2):
                 row = ""
                 for x in range(width):
                     top = pixels[y * width + x]
-                    bot = pixels[(y + 1) * width + x] if y + 1 < height else (0, 0, 0)
-                    # Use Rich markup: [on #RRGGBB] for background, [#RRGGBB] for foreground
+                    bot = pixels[(y + 1) * width + x] if y + 1 < height * 2 else (0, 0, 0)
+                    # Brighten colors slightly for better visibility on dark backgrounds
+                    top = tuple(min(255, c + 20) for c in top)
+                    bot = tuple(min(255, c + 20) for c in bot)
                     row += f"[#{top[0]:02x}{top[1]:02x}{top[2]:02x}][on #{bot[0]:02x}{bot[1]:02x}{bot[2]:02x}]\u2580[/on]"
                 result.append(row)
             return "\n".join(result)
