@@ -288,8 +288,8 @@ class LazyBlendApp(App):
 
     @on(DataTable.RowSelected, "#file-table")
     def on_row_selected(self, event: DataTable.RowSelected) -> None:
-        if event.row_index is not None and 0 <= event.row_index < len(self.filtered_files):
-            info = self.filtered_files[event.row_index]
+        if event.cursor_row is not None and 0 <= event.cursor_row < len(self.filtered_files):
+            info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
 
     @on(Button.Pressed, "#btn-all")
