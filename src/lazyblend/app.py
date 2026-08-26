@@ -303,7 +303,7 @@ class LazyBlendApp(App):
         # Run extraction in background
         self._run_extraction(info, row_index)
 
-    @work(thread=True, group="extract", exclusive=True)
+    @work(thread=True, group="extract")
     def _run_extraction(self, info: BlendInfo, row_index: int) -> None:
         """Extract metadata using Blender in background mode."""
         worker = get_current_worker()
