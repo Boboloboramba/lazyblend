@@ -7,6 +7,7 @@ and render metadata without opening the GUI.
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass, field, asdict
@@ -325,8 +326,7 @@ def extract_metadata(
             env["LAZYBLEND_THUMBNAIL"] = thumb_path
 
         result = subprocess.run(
-            [
-                blender_path,
+            shlex.split(blender_path) + [
                 "-b",  # background mode
                 filepath,
                 "--python", script_path,
@@ -462,7 +462,7 @@ def rename_item(
         }
 
         result = subprocess.run(
-            [blender_path, "-b", filepath, "--python", script_path],
+            shlex.split(blender_path) + ["-b", filepath, "--python", script_path],
             capture_output=True,
             text=True,
             timeout=EXTRACT_TIMEOUT,

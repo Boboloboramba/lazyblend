@@ -1,6 +1,8 @@
 """Application configuration management."""
 
 import json
+import shutil
+import sys
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
@@ -18,10 +20,54 @@ DEFAULT_SCAN_DIRS = [
 ]
 
 
+def find_blender() -> str:
+    """Auto-detect Blender executable path."""
+    # Check PATH first
+    path = shutil.which("blender")
+    if path:
+        return path
+
+    # macOS standard install location
+    if sys.platform == "darwin":
+        mac_paths = [
+            "/Applications/Blender.app/Contents/MacOS/blender",
+            str(Path.home() / "Applications" / "Blender.app" / "Contents" / "MacOS" / "blender"),
+        ]
+        for p in mac_paths:
+            if Path(p).exists():
+                return p
+
+    # Windows standard install location
+    if sys.platform == "win32":
+        win_paths = [
+            r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
+            r"C:\Program Files\Blender Foundation\Blender 3.6\blender.exe",
+        ]
+        for p in win_paths:
+            if Path(p).exists():
+                return p
+
+    # Linux Flatpak
+    flatpak = shutil.which("flatpak")
+    if flatpak:
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["flatpak", "list", "--app", "--columns=application"],
+                capture_output=True, text=True, timeout=5
+            )
+            if "org.blender.Blender" in result.stdout:
+                return "flatpak run org.blender.Blender"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+    return "blender"
+
+
 @dataclass
 class Config:
     scan_dirs: list[str] = field(default_factory=lambda: list(DEFAULT_SCAN_DIRS))
-    blender_path: str = "blender"
+    blender_path: str = field(default_factory=find_blender)
     max_recent: int = 50
     show_hidden: bool = False
     sort_by: str = "name"  # name, size, date
