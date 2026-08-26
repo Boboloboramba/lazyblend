@@ -17,7 +17,7 @@ BarWidget {
     tooltipText: "LazyBlend - Blender file browser"
     onPressed: function(button) {
       if (!root.bar) return
-      root.bar.run("uwsm-app -- xdg-terminal-exec -e /home/robertetheridge/lazyblend/.venv/bin/lazyblend")
+      root.bar.run("uwsm-app -- xdg-terminal-exec -e lazyblend")
     }
   }
 }
