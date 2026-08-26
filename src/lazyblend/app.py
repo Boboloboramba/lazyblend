@@ -974,12 +974,12 @@ class InfoScreen(Screen):
             if node and self._is_editable(node):
                 self._start_rename(node)
                 event.stop()
-        elif event.key == "right":
+        elif event.key == "l":
             node = tree.cursor_node
             if node and node.children:
                 node.expand()
                 event.stop()
-        elif event.key == "left":
+        elif event.key == "h":
             node = tree.cursor_node
             if node:
                 node.collapse()
