@@ -70,18 +70,12 @@ class LazyBlendApp(App):
     SUB_TITLE = "Blender File Manager"
 
     CSS = """
-    Screen {
-        layout: grid;
-        grid-size: 2;
-        grid-columns: 1fr 30fr;
-        grid-rows: 1fr;
-    }
-
     #sidebar {
-        width: 100%;
+        width: 24;
+        min-width: 24;
         height: 100%;
         border: solid $primary;
-        padding: 1;
+        padding: 1 0;
     }
 
     #sidebar Button {
@@ -90,22 +84,19 @@ class LazyBlendApp(App):
     }
 
     #main-panel {
-        width: 100%;
+        width: 1fr;
         height: 100%;
     }
 
     #search {
-        dock: top;
         margin: 0 0 1 0;
     }
 
     #file-table {
-        width: 100%;
         height: 1fr;
     }
 
     #info-panel {
-        dock: bottom;
         height: auto;
         max-height: 12;
         border: solid $accent;
