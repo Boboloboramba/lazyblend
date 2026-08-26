@@ -8,6 +8,7 @@ CONFIG_DIR = Path.home() / ".config" / "lazyblend"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 FAVORITES_FILE = CONFIG_DIR / "favorites.json"
 RECENT_FILE = CONFIG_DIR / "recent.json"
+CACHE_DIR = CONFIG_DIR / "cache"
 
 DEFAULT_SCAN_DIRS = [
     str(Path.home() / "Documents"),

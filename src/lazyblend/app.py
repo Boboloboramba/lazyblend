@@ -23,8 +23,15 @@ from textual.worker import get_current_worker
 from rapidfuzz import fuzz
 
 from lazyblend.blend_parser import BlendInfo
+from lazyblend.blend_inspector import (
+    BlendMetadata,
+    extract_metadata,
+    get_cached_metadata,
+    save_metadata_cache,
+)
 from lazyblend.scanner import scan_for_blends
 from lazyblend.config import (
+    CACHE_DIR,
     Config,
     load_favorites,
     save_favorites,
@@ -223,19 +230,100 @@ class LazyBlendApp(App):
         lines = [
             f"[bold]{path.name}[/bold]",
             f"Path: {info.path}",
-            f"Size: {info.size_str}",
-            f"Modified: {info.modified_str}",
+            f"Size: {info.size_str} | Modified: {info.modified_str}",
         ]
         if info.valid:
-            lines.append(f"Version: {info.version}")
-            lines.append(f"Pointer: {info.pointer_size} | {info.endianness}")
+            lines.append(f"Version: {info.version} | {info.pointer_size} | {info.endianness}")
         else:
-            lines.append("[dim]Not a valid .blend file header[/dim]")
+            lines.append("[dim]Not a valid .blend file file header[/dim]")
+
+        # Show deep metadata if available
+        if info.metadata:
+            meta = info.metadata
+            if meta.error:
+                lines.append(f"[dim]Analysis: {meta.error}[/dim]")
+            else:
+                # Scene summary
+                scene_names = [s.name for s in meta.scenes]
+                if scene_names:
+                    lines.append(f"Scenes: {len(meta.scenes)} ({', '.join(scene_names[:3])})")
+
+                # Object summary
+                if meta.total_objects > 0:
+                    lines.append(f"Objects: {meta.object_summary}")
+
+                # Geometry
+                if meta.total_polygons > 0 or meta.total_vertices > 0:
+                    parts = []
+                    if meta.total_polygons > 0:
+                        parts.append(f"Polygons: {meta.polygon_str}")
+                    if meta.total_vertices > 0:
+                        parts.append(f"Vertices: {meta.vertex_str}")
+                    lines.append(" | ".join(parts))
+
+                # Materials and collections
+                if meta.materials or meta.collections:
+                    parts = []
+                    if meta.materials:
+                        parts.append(f"Materials: {len(meta.materials)}")
+                    if meta.collections:
+                        parts.append(f"Collections: {len(meta.collections)}")
+                    lines.append(" | ".join(parts))
+
+                # Render info
+                if meta.resolution_str:
+                    engine = meta.render_engine.replace("BLENDER_", "").title()
+                    fps_str = f" @ {meta.fps:.0f}fps" if meta.fps else ""
+                    lines.append(f"Render: {engine} | {meta.resolution_str}{fps_str}")
+
+                # Frame range
+                if meta.frame_start != meta.frame_end:
+                    lines.append(f"Frames: {meta.frame_start}-{meta.frame_end}")
+
+        elif info.valid and info.metadata is None:
+            lines.append("[dim]Analyzing...[/dim]")
 
         if info.path in self.favorites:
             lines.append("[yellow]★ Favorite[/yellow]")
 
         panel.update("\n".join(lines))
+
+    def _extract_metadata(self, info: BlendInfo, row_index: int) -> None:
+        """Trigger async metadata extraction for a blend file."""
+        # Check cache first
+        cached = get_cached_metadata(CACHE_DIR, info.path)
+        if cached is not None:
+            info.metadata = cached
+            # Update display if still on same row
+            table = self.query_one("#file-table", DataTable)
+            if table.cursor_row == row_index:
+                self._update_info_panel(info)
+            return
+
+        # Run extraction in background
+        self._run_extraction(info, row_index)
+
+    @work(thread=True, group="extract", exclusive=True)
+    def _run_extraction(self, info: BlendInfo, row_index: int) -> None:
+        """Extract metadata using Blender in background mode."""
+        worker = get_current_worker()
+        metadata = extract_metadata(info.path, self.config.blender_path)
+        if worker.is_cancelled:
+            return
+        self.call_from_thread(self._on_metadata_extracted, info, row_index, metadata)
+
+    def _on_metadata_extracted(
+        self, info: BlendInfo, row_index: int, metadata: BlendMetadata
+    ) -> None:
+        """Handle completed metadata extraction."""
+        info.metadata = metadata
+        if not metadata.error:
+            save_metadata_cache(CACHE_DIR, info.path, metadata)
+
+        # Update display if still on same row
+        table = self.query_one("#file-table", DataTable)
+        if table.cursor_row == row_index:
+            self._update_info_panel(info)
 
     def _populate_table(self) -> None:
         table = self.query_one("#file-table", DataTable)
@@ -307,6 +395,9 @@ class LazyBlendApp(App):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
             self._update_selection_status()
+            # Trigger async metadata extraction if not already cached
+            if info.valid and info.metadata is None:
+                self._extract_metadata(info, event.cursor_row)
 
     @on(Button.Pressed, "#btn-all")
     def on_btn_all(self) -> None:

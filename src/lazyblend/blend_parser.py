@@ -2,8 +2,10 @@
 
 import datetime
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from lazyblend.blend_inspector import BlendMetadata
 
 BLEND_MAGIC = b"BLENDER"
 ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
@@ -20,6 +22,7 @@ class BlendInfo:
     version_number: str = ""
     valid: bool = False
     compressed: bool = False
+    metadata: BlendMetadata | None = None
 
     @property
     def size_str(self) -> str:
