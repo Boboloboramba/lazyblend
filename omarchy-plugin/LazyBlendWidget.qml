@@ -1,36 +1,23 @@
-import Quickshell
-import Quickshell.Io
 import QtQuick
-import QtQuick.Layouts
+import qs.Ui
 
-Text {
+BarWidget {
   id: root
+  moduleName: "lazyblend"
 
-  property string tooltipText: "LazyBlend - Blender file browser"
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
-  text: "\uf2d2"  // Blender nerd font icon
-  font.family: "Symbols Nerd Font"
-  font.pixelSize: 16
-  color: MouseArea.containsMouse ? palette.highlight : palette.text
-
-  MouseArea {
-    id: mouseArea
+  WidgetButton {
+    id: button
     anchors.fill: parent
-    hoverEnabled: true
-    cursorShape: Qt.PointingHandCursor
-    onClicked: {
-      lazyblendProc.running = true
+    bar: root.bar
+    text: "\uDB84\uDD72"
+    horizontalMargin: 7.5
+    tooltipText: "LazyBlend"
+    onPressed: function(button) {
+      if (!root.bar) return
+      root.bar.run("omarchy-launch terminal lazyblend")
     }
-  }
-
-  Process {
-    id: lazyblendProc
-    command: ["omarchy-launch", "terminal", "lazyblend"]
-    running: false
-  }
-
-  ToolTip {
-    visible: mouseArea.containsMouse
-    text: root.tooltipText
   }
 }
