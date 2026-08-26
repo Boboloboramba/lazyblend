@@ -832,6 +832,13 @@ class InfoScreen(Screen):
     }
     """
 
+    BINDINGS = [
+        Binding("enter", "noop", show=False, priority=True),
+    ]
+
+    def action_noop(self) -> None:
+        pass
+
     def __init__(self, info: BlendInfo) -> None:
         super().__init__()
         self.info = info
