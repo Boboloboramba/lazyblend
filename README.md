@@ -4,6 +4,10 @@ A fast, fuzzy-searching TUI for browsing and launching Blender `.blend` files. B
 
 ![LazyBlend](https://img.shields.io/badge/status-alpha-blue) ![Python](https://img.shields.io/badge/python-3.10+-green) ![License](https://img.shields.io/badge/license-MIT-yellow)
 
+![LazyBlend Screenshot](screenshot-2026-08-26_08-25-17.png)
+
+![LazyBlend with metadata](screenshot-2026-08-26_08-38-23.png)
+
 ## Features
 
 - **Fuzzy search** — finds blend files by filename, collection names, object names, material names, and scene names
