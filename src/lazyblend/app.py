@@ -175,6 +175,7 @@ class LazyBlendApp(App):
         self.recent: list[str] = load_recent()
         self.current_filter: str = ""
         self.current_view: str = "all"  # all, favorites, recent
+        self._extract_timer = None
         self._help_visible = False
         self._selected_rows: set[int] = set()
 
@@ -395,9 +396,13 @@ class LazyBlendApp(App):
             info = self.filtered_files[event.cursor_row]
             self._update_info_panel(info)
             self._update_selection_status()
-            # Trigger async metadata extraction if not already cached
+            # Debounce: cancel previous timer, schedule new extraction after 0.3s
+            if self._extract_timer is not None:
+                self._extract_timer.stop()
             if info.valid and info.metadata is None:
-                self._extract_metadata(info, event.cursor_row)
+                self._extract_timer = self.set_timer(
+                    0.3, lambda: self._extract_metadata(info, event.cursor_row)
+                )
 
     @on(Button.Pressed, "#btn-all")
     def on_btn_all(self) -> None:
