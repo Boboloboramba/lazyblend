@@ -951,7 +951,7 @@ class InfoScreen(Screen):
         elif event.key == "k":
             tree.action_cursor_up()
             event.stop()
-        elif event.key == "enter":
+        elif event.key == "r":
             node = tree.cursor_node
             if node and self._is_editable(node):
                 self._start_rename(node)
